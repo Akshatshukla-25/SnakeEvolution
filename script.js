@@ -147,6 +147,10 @@ const canvas = document.getElementById('gameBoard');
 const ctx = canvas.getContext('2d');
 const box = 20; // cell size
 let snake, direction, nextDirection, food, score, evo, evoActive, evoTimer, gameRunning, frameCount, moveDelay, animationId;
+// For Powerup
+let slowTime = null;
+let slowTimeActive = false;
+let slowTimeTimer = 0;
 function initGameVars() {
     snake = [{ x: 10, y: 10 }];
     direction = { x: 0, y: 0 };
@@ -256,6 +260,16 @@ function draw() {
         ctx.arc(evo.x * box + box / 2, evo.y * box + box / 2, box / 2 - 2, 0, 2 * Math.PI);
         ctx.stroke();
     }
+    // Slowdown powerup
+    if (slowTime) {
+    ctx.save();
+    ctx.shadowColor = "#8e44ad"; // purple glow
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = "#8e44ad"; // purple fill
+    ctx.fillRect(slowTime.x * box + 4, slowTime.y * box + 4, box - 8, box - 8);
+    ctx.restore();
+    }
+
     // Snake
     for (let i = 0; i < snake.length; i++) {
         ctx.save();
@@ -324,11 +338,19 @@ function update() {
         document.getElementById('score').textContent = score;
         food = randomEmptyTile();
         if (!evo && Math.random() < 0.22) evo = randomEmptyTile();
+        if (!slowTime && Math.random() < 0.18) slowTime = randomEmptyTile();
     } else if (evo && head.x === evo.x && head.y === evo.y) {
         evoActive = true;
         evoTimer = 44;
         document.getElementById('evoBox').textContent = 'WALL PASS ACTIVE!';
         evo = null;
+    }
+    else if (slowTime && head.x === slowTime.x && head.y === slowTime.y) {
+    slowTimeActive = true;
+    slowTimeTimer = 300; // lasts ~5 seconds at 60fps
+    moveDelay = 12; // slow down movement
+    slowTime = null; // remove powerup from board
+    document.getElementById('evoBox').textContent = 'SLOW TIME ACTIVE!';
     } else {
         snake.pop();
     }
@@ -338,19 +360,31 @@ function gameOver() {
     gameRunning = false;
     document.body.classList.remove('game-active');
     saveScoreIfBest();
+    slowTime = null;
     draw(); // to show game over overlay
 }
 
 function loop() {
     animationId = requestAnimationFrame(loop);
     if (!gameRunning) return;
+    // ⏳ Handle Slow Time countdown
+    if (slowTimeActive) {
+        slowTimeTimer--;
+        if (slowTimeTimer <= 0) {
+            slowTimeActive = false;
+            moveDelay = 6; // restore normal speed
+            document.getElementById('evoBox').textContent = '';
+        }
+    }
     frameCount++;
     if (frameCount >= moveDelay) {
         frameCount = 0;
         update();
     }
+
     draw();
 }
+
 function resetGame() {
     if (animationId) {
         cancelAnimationFrame(animationId);
