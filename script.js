@@ -146,11 +146,15 @@ async function displayLeaderboard() {
 const canvas = document.getElementById('gameBoard');
 const ctx = canvas.getContext('2d');
 const box = 20; // cell size
-let snake, direction, nextDirection, food, score, evo, evoActive, evoTimer, gameRunning, frameCount, moveDelay, animationId;
+let snake, direction, nextDirection, food, score, gameRunning, frameCount, moveDelay, animationId;
+// Powerups
+let evo, evoActive, evoTimer;
 // For Powerup
 let slowTime = null;
 let slowTimeActive = false;
 let slowTimeTimer = 0;
+let shield, shieldActive, shieldTimer;
+
 function initGameVars() {
     snake = [{ x: 10, y: 10 }];
     direction = { x: 0, y: 0 };
@@ -160,6 +164,9 @@ function initGameVars() {
     evo = null;
     evoActive = false;
     evoTimer = 0;
+    shield = null;
+    shieldActive = false;
+    shieldTimer = 0;
     frameCount = 0;
     moveDelay = 9;
     document.getElementById('score').textContent = score;
@@ -269,12 +276,23 @@ function draw() {
     ctx.fillRect(slowTime.x * box + 4, slowTime.y * box + 4, box - 8, box - 8);
     ctx.restore();
     }
+    // Shield powerup
+    if (shield) {
+        ctx.save();
+        ctx.shadowColor = "#00ffff"; // Cyan glow
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = "#00ffff"; // Cyan fill
+        ctx.beginPath();
+        ctx.arc(shield.x * box + box / 2, shield.y * box + box / 2, box / 2 - 3, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.restore();
+    }
 
     // Snake
     for (let i = 0; i < snake.length; i++) {
         ctx.save();
-        ctx.fillStyle = i === 0 ? "#ececec" : "url(#snake-gradient)";
-        ctx.shadowColor = i === 0 ? "#39ff14" : "#181818";
+        ctx.fillStyle = i === 0 ? (shieldActive ? "#00ffff" : "#ececec") : "url(#snake-gradient)";
+        ctx.shadowColor = i === 0 ? (shieldActive ? "#00ffff" : "#39ff14") : "#181818";
         ctx.shadowBlur = i === 0 ? 16 : 3;
         ctx.fillRect(snake[i].x * box + 2, snake[i].y * box + 2, box - 4, box - 4);
         ctx.restore();
@@ -330,13 +348,14 @@ function update() {
         }
     }
     // Self collision
-    if (snake.some(seg => seg.x === head.x && seg.y === head.y)) return gameOver();
+    if (!shieldActive && snake.some(seg => seg.x === head.x && seg.y === head.y)) return gameOver();
     snake.unshift(head);
     // Eat food
     if (head.x === food.x && head.y === food.y) {
         score++;
         document.getElementById('score').textContent = score;
         food = randomEmptyTile();
+        if (!shield && Math.random() < 0.30) shield = randomEmptyTile();
         if (!evo && Math.random() < 0.22) evo = randomEmptyTile();
         if (!slowTime && Math.random() < 0.18) slowTime = randomEmptyTile();
     } else if (evo && head.x === evo.x && head.y === evo.y) {
@@ -344,6 +363,13 @@ function update() {
         evoTimer = 44;
         document.getElementById('evoBox').textContent = 'WALL PASS ACTIVE!';
         evo = null;
+    } else if (shield && head.x === shield.x && head.y === shield.y) {
+        if (!shieldActive) { // Prevent stacking
+            shieldActive = true;
+            shieldTimer = 120; // 2 seconds at 60fps
+            document.getElementById('evoBox').textContent = 'SHIELD ACTIVE!';
+        }
+        shield = null;
     }
     else if (slowTime && head.x === slowTime.x && head.y === slowTime.y) {
     slowTimeActive = true;
@@ -360,6 +386,7 @@ function gameOver() {
     gameRunning = false;
     document.body.classList.remove('game-active');
     saveScoreIfBest();
+    shield = null;
     slowTime = null;
     draw(); // to show game over overlay
 }
@@ -374,6 +401,14 @@ function loop() {
             slowTimeActive = false;
             moveDelay = 6; // restore normal speed
             document.getElementById('evoBox').textContent = '';
+        }
+    }
+    // 🛡️ Handle Shield countdown
+    if (shieldActive) {
+        shieldTimer--;
+        if (shieldTimer <= 0) {
+            shieldActive = false;
+            if (!evoActive && !slowTimeActive) document.getElementById('evoBox').textContent = '';
         }
     }
     frameCount++;
